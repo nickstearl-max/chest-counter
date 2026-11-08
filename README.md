@@ -25,6 +25,12 @@ Get **ChestCounter.exe** from the [latest release](../../releases/latest) and do
 
 It counts **CHEST**, **CHEST X2**, **RARE CHEST** and **SPRITE CHEST**.
 
+## ⚠️ Turn it off for tournaments
+Don't run Chest Counter in **tournaments, FNCS or cash cups**. Press **Ctrl + Alt + C** to turn it off first.
+
+- **Tournaments:** Epic's [FNCS rules (section 8.2.1)](https://www.fortnite.com/competitive/rules-guidelines/rules-library/fortnite-championship-series-fncs-2026-official-rules) ban overlays and tools that read the live game, including through screen recording or screenshots, when they give a competitive advantage. A chest count doesn't give you an edge, but Epic reads this rule broadly and has disqualified players for screen-reading tools. Don't risk it.
+- **Normal games:** the [Fortnite EULA](https://legal.epicgames.com/en-US/fortnite/eula) only bans unauthorized software used *to gain an advantage*. Chest Counter doesn't give you one, and it doesn't touch the game. Still, Epic doesn't officially support any third-party app, so you use it at your own risk.
+
 ## How it works
 When you open a chest, Fortnite shows a purple popup: **"+600 XP · CHEST"**. Chest Counter looks at that one small spot on the screen (280×140 pixels) every 0.6 seconds and recognises the word by its purple outline. Because it only looks at the outline, whatever is behind the popup doesn't matter.
 
