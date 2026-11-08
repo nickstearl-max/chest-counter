@@ -1,8 +1,10 @@
 <img src="docs/icon.png" width="72" align="right" alt="">
 
-# Chest Counter
+# Chest Counter · Beta
 
 Counts the chests you open in Fortnite. A small overlay under your minimap shows **This game** and **All time**, and the numbers roll up each time you open one.
+
+> **Beta:** Chest Counter is still in beta. It has been tested on 1080p and works well, but a count may occasionally be missed or doubled. Use **+1 / −1** to fix it, and please [open an issue](../../issues) if something looks wrong.
 
 <img src="docs/screenshot.png" width="340" alt="Chest Counter window">
 
@@ -30,6 +32,11 @@ Don't run Chest Counter in **tournaments, FNCS or cash cups**. Press **Ctrl + Al
 
 - **Tournaments:** Epic's [FNCS rules (section 8.2.1)](https://www.fortnite.com/competitive/rules-guidelines/rules-library/fortnite-championship-series-fncs-2026-official-rules) ban overlays and tools that read the live game, including through screen recording or screenshots, when they give a competitive advantage. A chest count doesn't give you an edge, but Epic reads this rule broadly and has disqualified players for screen-reading tools. Don't risk it.
 - **Normal games:** the [Fortnite EULA](https://legal.epicgames.com/en-US/fortnite/eula) only bans unauthorized software used *to gain an advantage*. Chest Counter doesn't give you one, and it doesn't touch the game. Still, Epic doesn't officially support any third-party app, so you use it at your own risk.
+
+## Uninstall
+Click **uninstall** at the bottom of the Chest Counter window and confirm. It deletes your counts, settings and snapshots (`%APPDATA%\ChestCounter`), then removes `ChestCounter.exe` a moment after it closes. Nothing else is left on your PC.
+
+You can also run `ChestCounter.exe --uninstall` with the app closed.
 
 ## How it works
 When you open a chest, Fortnite shows a purple popup: **"+600 XP · CHEST"**. Chest Counter looks at that one small spot on the screen (280×140 pixels) every 0.6 seconds and recognises the word by its purple outline. Because it only looks at the outline, whatever is behind the popup doesn't matter.

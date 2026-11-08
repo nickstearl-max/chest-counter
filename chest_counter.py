@@ -20,7 +20,10 @@ import ctypes
 import ctypes.wintypes as wt
 import json
 import os
+import shutil
+import subprocess
 import sys
+import tempfile
 import threading
 import time
 import tkinter as tk
@@ -33,7 +36,7 @@ import numpy as np
 cv2.setNumThreads(1)      # the images are tiny; extra threads just burn CPU spinning up
 
 APP_NAME = "Chest Counter"
-VERSION = "1.0.0"
+VERSION = "1.1.0-beta"
 HERE = os.path.dirname(os.path.abspath(__file__))
 ASSETS = os.path.join(getattr(sys, "_MEIPASS", HERE), "assets")       # bundled into the .exe
 DATA_DIR = os.path.join(os.environ.get("APPDATA", HERE), "ChestCounter")
@@ -123,6 +126,49 @@ def save_config(cfg):
         os.replace(tmp, CONFIG_PATH)
     except OSError:
         pass
+
+
+# ------------------------------------------------------------- uninstall ----
+# Runs after the app has closed: waits until ChestCounter.exe is no longer in
+# use, deletes it, then deletes itself. ping is used as a sleep because
+# "timeout" doesn't work without a console window.
+_REMOVE_EXE_BAT = r"""@echo off
+set n=0
+:retry
+ping -n 2 127.0.0.1 >nul
+del /f /q "{exe}" >nul 2>&1
+if exist "{exe}" (
+  set /a n+=1
+  if !n! lss 30 goto retry
+)
+(goto) 2>nul & del /f /q "%~f0"
+"""
+
+
+def uninstall(parent=None):
+    """Delete counts, settings and snapshots, and (for the .exe) the program itself.
+    Returns True if the user went ahead."""
+    if not messagebox.askyesno(
+            "Uninstall " + APP_NAME,
+            "Uninstall Chest Counter?\n\n"
+            "This deletes your chest counts, settings and snapshots, and removes "
+            "ChestCounter.exe from this PC.\n\nThis can't be undone.",
+            icon="warning", default="no", parent=parent):
+        return False
+    shutil.rmtree(DATA_DIR, ignore_errors=True)
+    exe = sys.executable if getattr(sys, "frozen", False) else None
+    if exe:
+        bat = os.path.join(tempfile.gettempdir(), f"chestcounter_uninstall_{os.getpid()}.bat")
+        with open(bat, "w", encoding="mbcs") as f:
+            f.write(_REMOVE_EXE_BAT.format(exe=exe))
+        subprocess.Popen(["cmd", "/v:on", "/c", bat], creationflags=0x08000000,   # CREATE_NO_WINDOW
+                         close_fds=True, cwd=tempfile.gettempdir())
+        done = "Chest Counter has been uninstalled.\n\nChestCounter.exe will be removed a moment after this closes."
+    else:
+        done = ("Your counts, settings and snapshots have been deleted.\n\n"
+                "You're running from source, so delete the ChestCounter folder yourself.")
+    messagebox.showinfo("Uninstall " + APP_NAME, done, parent=parent)
+    return True
 
 
 # --------------------------------------------------------------- windows ----
@@ -542,7 +588,11 @@ class App:
 
     def _build(self):
         pad = {"padx": 18}
-        self._label(self.root, APP_NAME, 18, bold=True).pack(anchor="w", pady=(16, 0), **pad)
+        head = tk.Frame(self.root, bg=BG)
+        head.pack(anchor="w", pady=(16, 0), **pad)
+        self._label(head, APP_NAME, 18, bold=True).pack(side="left")
+        tk.Label(head, text="BETA", bg=GOLD, fg="#14161c", font=("Segoe UI", 8, "bold"),
+                 padx=6, pady=1).pack(side="left", padx=(8, 0), pady=(6, 0))
         self._label(self.root, "Counts the chests you open in Fortnite", 10, DIM).pack(anchor="w", **pad)
 
         self.toggle_btn = tk.Button(self.root, command=self.toggle, relief="flat", bd=0, fg="white",
@@ -582,12 +632,17 @@ class App:
         self.score_lbl = self._label(self.root, "", 9, DIM)
         self.score_lbl.pack(anchor="w", pady=(8, 0), **pad)
         foot = tk.Frame(self.root, bg=BG)
-        foot.pack(fill="x", pady=(6, 16), **pad)
+        foot.pack(fill="x", pady=(6, 4), **pad)
         self._label(foot, "Ctrl + Alt + C turns it on/off (works in game)", 9, DIM).pack(side="left")
-        link = self._label(foot, "snapshots", 9, ACCENT, cursor="hand2")
+        foot2 = tk.Frame(self.root, bg=BG)
+        foot2.pack(fill="x", pady=(0, 14), **pad)
+        self._label(foot2, f"v{VERSION}  ·  beta: counts may occasionally be off", 9, DIM).pack(side="left")
+        link = self._label(foot2, "uninstall", 9, "#e06c6c", cursor="hand2")
         link.pack(side="right")
+        link.bind("<Button-1>", lambda e: self.do_uninstall())
+        link = self._label(foot2, "snapshots", 9, ACCENT, cursor="hand2")
+        link.pack(side="right", padx=(0, 12))
         link.bind("<Button-1>", lambda e: self.open_snapshots())
-        self._label(foot, f"v{VERSION}", 9, DIM).pack(side="right", padx=(0, 10))
 
     # ---- state
     def set_enabled(self, on):
@@ -667,8 +722,18 @@ class App:
             self.overlay.hide()
         self.root.after(400 if on else 1000, self._tick)
 
+    def do_uninstall(self):
+        self.scanner.enabled.clear()               # stop counting while the question is up
+        if uninstall(parent=self.root):
+            self.uninstalled = True                # don't write settings back on the way out
+            self.overlay.hide()
+            self.root.destroy()
+        else:
+            self.set_enabled(self.cfg["enabled"])
+
     def quit(self):
-        save_config(self.cfg)
+        if not getattr(self, "uninstalled", False):
+            save_config(self.cfg)
         self.root.destroy()
 
     def run(self):
@@ -711,7 +776,19 @@ if __name__ == "__main__":
     else:
         # Only ever one copy (two would double the counts).
         _mutex = kernel32.CreateMutexW(None, False, "Local\\ChestCounterSingleInstance")
-        if kernel32.GetLastError() == 183:          # ERROR_ALREADY_EXISTS
+        already_running = kernel32.GetLastError() == 183      # ERROR_ALREADY_EXISTS
+        if "--uninstall" in sys.argv:
+            _root = tk.Tk()
+            _root.withdraw()
+            if already_running:
+                messagebox.showwarning("Uninstall " + APP_NAME,
+                                       "Chest Counter is open. Close it first, or click "
+                                       "\"uninstall\" at the bottom of its window.")
+            else:
+                uninstall(parent=_root)
+            _root.destroy()
+            sys.exit(0)
+        if already_running:
             hwnd = user32.FindWindowW(None, APP_NAME)
             if hwnd:
                 user32.ShowWindow(hwnd, 9)          # SW_RESTORE
